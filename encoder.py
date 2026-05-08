@@ -127,7 +127,7 @@ def lzss_encode(data: bytes,
 
         if length >= min_match:
             writer.write_bit(1)
-            writer.write_bits(offset, off_bits)
+            writer.write_bits(offset - 1, off_bits)
             writer.write_bits(length, len_bits)
 
             writer.add_pair(offset, length)

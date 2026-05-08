@@ -58,12 +58,9 @@ def lzss_decode(compressed_data: bytes) -> bytes:
 
         if flag == 1:
             
-            offset = reader.read_bits(off_bits)
+            offset = reader.read_bits(off_bits) +1 
             length = reader.read_bits(len_bits)
            
-            if offset == 0:
-                print("Warning: Read offset equal to 0. The encoder likely truncated bits.", file=sys.stderr)
-                offset = window_size - 1  
                 
             start = len(decoded) - offset
             
