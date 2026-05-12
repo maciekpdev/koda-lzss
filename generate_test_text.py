@@ -10,7 +10,6 @@ def generate_test_file(filename="test.txt"):
     content += "A" * 500  
     content += pattern2 * 200
     content += pattern1 * 50
-    
 
     with open(filename, "w", encoding="utf-8") as f:
         f.write(content)
