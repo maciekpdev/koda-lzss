@@ -148,10 +148,9 @@ def lzss_encode(data: bytes,
 
 
 def save_lzss(filename, compressed,
-              window_size, lookahead_size,
-              min_match, original_size):
+              window_size, lookahead_size, original_size):
     with open(filename, 'wb') as f:
-        f.write(struct.pack('>HBB', window_size, lookahead_size, min_match))
+        f.write(struct.pack('>HB', window_size, lookahead_size))
         f.write(struct.pack('>I', original_size))
         f.write(compressed)
 
@@ -193,7 +192,6 @@ def main():
         compressed,
         args.window,
         args.lookahead,
-        args.min_match,
         len(data)
     )
 

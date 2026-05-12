@@ -31,13 +31,13 @@ class BitReader:
 
 def lzss_decode(compressed_data: bytes) -> bytes:
     
-    header_format = '>HBB'
+    header_format = '>HB'
     header_size = struct.calcsize(header_format)
     
     if len(compressed_data) < header_size + 4:
         raise ValueError("File is too small, missing complete header.")
 
-    window_size, lookahead_size, min_match = struct.unpack(
+    window_size, lookahead_size = struct.unpack(
         header_format, compressed_data[:header_size]
     )
     original_size = struct.unpack('>I', compressed_data[header_size:header_size + 4])[0]

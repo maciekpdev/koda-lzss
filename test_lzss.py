@@ -55,10 +55,9 @@ def test_lzss_file_roundtrip(
 )
 
     header = struct.pack(
-        '>HBBI',
+        '>HBI',
         window_size,
         lookahead_size,
-        min_match,
         len(original_data)
     )
 
