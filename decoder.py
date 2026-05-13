@@ -95,9 +95,11 @@ def main():
         sys.exit(1)
 
     print(f"Starting decompression of file: {args.input}")
-    
+    import time
+    counter = time.perf_counter()
     decoded_data = lzss_decode(compressed)
-
+    elapsed = time.perf_counter() - counter
+    print(f"Decompression completed in {elapsed:.2f} seconds.")
     with open(args.output, "wb") as f:
         f.write(decoded_data)
 
