@@ -1,5 +1,3 @@
-# tests/test_lzss_files.py
-
 from pathlib import Path
 import struct
 import zlib
@@ -8,7 +6,8 @@ import time
 from encoder import lzss_encode, save_lzss
 from decoder import lzss_decode
 from encoder import lzss_encode, WINDOW_SIZE, LOOKAHEAD_SIZE
-
+import lz4.frame 
+import os
 
 TEST_DIRECTORIES = [
     Path("obrazy_testowe"),
@@ -144,3 +143,68 @@ def test_lzss_plus_huffman(filepath, tmp_path):
     huffman_gain = lzss_size - final_size
     print(f"Gain from Huffman: {huffman_gain} B ({100 - (final_size/lzss_size * 100):.2f}%)")
     print(f"Final compression: {final_size / orig_size * 100:.2f}%")
+
+
+
+
+@pytest.mark.parametrize("filepath", [
+    "rozklady_testowe/geometr_05.pgm",
+    "test.txt"
+])
+def test_lzss_vs_lz4_benchmark(filepath, tmp_path):
+    
+
+    with open(filepath, "rb") as f:
+        data = f.read()
+
+    orig_size = len(data)
+    assert orig_size > 0, "Plik jest pusty"
+
+    
+    start_lzss = time.perf_counter()
+    raw_lzss_bits, _, _, _ = lzss_encode(data)
+    
+    
+    temp_lzss_file = tmp_path / "compressed_test.lzss"
+    
+    
+    save_lzss(temp_lzss_file, raw_lzss_bits, WINDOW_SIZE, LOOKAHEAD_SIZE, orig_size)
+    
+    lzss_time = time.perf_counter() - start_lzss
+
+    
+    my_lzss_size = os.path.getsize(temp_lzss_file)
+
+    
+    start_lz4 = time.perf_counter()
+    
+    
+    lz4_data = lz4.frame.compress(data, compression_level=9)
+    lz4_size = len(lz4_data)
+    
+    lz4_time = time.perf_counter() - start_lz4
+
+    
+    print(f"\n\n--- Benchmark for file: {filepath} ---")
+    print(f"Original size: {orig_size} bytes")
+    
+    print(f"\n[LZSS]")
+    print(f" - Size after compression: {my_lzss_size} bytes")
+    print(f" - Compression ratio:  {(my_lzss_size / orig_size) * 100:.1f}% of original")
+    print(f" - Time:       {lzss_time:.4f} seconds")
+    
+    print(f"\n[Library LZ4]")
+    print(f" - Size after compression: {lz4_size} bytes")
+    print(f" - Compression ratio:  {(lz4_size / orig_size) * 100:.1f}% of original")
+    print(f" - Time:       {lz4_time:.4f} seconds")
+    
+   
+    size_diff = my_lzss_size - lz4_size
+    
+    print(f"\n[Summary of sizes]")
+    if size_diff > 0:
+        print(f"LZ4 compressed the data better by {size_diff} bytes.")
+    else:
+        print(f"LZSS compressed the data better by {abs(size_diff)} bytes than the LZ4 library.")
+
+    assert my_lzss_size < orig_size, "LZSS did not reduce the file size"
