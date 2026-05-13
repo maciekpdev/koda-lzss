@@ -224,3 +224,4 @@ __marimo__/
 
 *.txt
 *.pgm
+!requirements.txt
