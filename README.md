@@ -122,4 +122,3 @@ With `--debug`, the encoder generates a human-readable file:
 Plus a bit-level view:
 
 00100000 11000000 ...
-

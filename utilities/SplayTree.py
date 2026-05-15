@@ -7,7 +7,6 @@ class SplayNode:
         self.right = None
         self.parent = None
 
-
 class SplayTree:
     def __init__(self, data: bytes, lookahead_size: int):
         self.data = data
