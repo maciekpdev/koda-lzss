@@ -23,8 +23,6 @@ class BitWriter:
         self._byte = 0
         self._fill = 0
         self.bits = []
-        self.debug_tokens = []
-        self.decoded = bytearray()
 
     def write_bit(self, bit: int) -> None:
         self._byte = (self._byte << 1) | (bit & 1)
@@ -39,28 +37,6 @@ class BitWriter:
         for i in range(n - 1, -1, -1):
             self.write_bit((value >> i) & 1)
 
-    def add_literal(self, byte_val: int):
-        self.decoded.append(byte_val)
-        ch = chr(byte_val) if 32 <= byte_val < 127 else '?'
-        self.debug_tokens.append(
-            f"[LITERAL] '{ch}' (0x{byte_val:02X})"
-        )
-
-    def add_pair(self, offset: int, length: int):
-        start = len(self.decoded) - offset
-        repeated = bytearray()
-        for i in range(length):
-            b = self.decoded[start + i]
-            repeated.append(b)
-            self.decoded.append(b)
-        try:
-            text = repeated.decode('utf-8')
-        except Exception:
-            text = str(repeated)
-        self.debug_tokens.append(
-            f'[PAIR] offset={offset} length={length} ("{text}")'
-        )
-
     def flush(self) -> bytes:
         if self._fill:
             self._byte <<= (8 - self._fill)
@@ -68,12 +44,6 @@ class BitWriter:
             self._byte = 0
             self._fill = 0
         return bytes(self._buf)
-
-    def byte_groups(self) -> str:
-        out = []
-        for i in range(0, len(self.bits), 8):
-            out.append(''.join(self.bits[i:i + 8]).ljust(8, '0'))
-        return ' '.join(out)
 
 
 def find_longest_match_naive(data: bytes, current_pos: int,
@@ -120,7 +90,6 @@ def lzss_encode(data: bytes,
             writer.write_bit(1)
             writer.write_bits(offset - 1, off_bits)
             writer.write_bits(length, len_bits)
-            writer.add_pair(offset, length)
 
             for k in range(length):
                 if i + k < n:
@@ -134,7 +103,6 @@ def lzss_encode(data: bytes,
         else:
             writer.write_bit(0)
             writer.write_bits(data[i], 8)
-            writer.add_literal(data[i])
 
             splay_tree.insert(i)
             old = i - window_size
@@ -169,6 +137,7 @@ def lz77_encode(data: bytes,
         writer.write_bits(length, len_bits)
         if i + length <= n:
             writer.write_bits(data[i + length], 8)
+            break
 
         for k in range(length):
             if i + k < n:
@@ -191,7 +160,6 @@ def parse_args():
     p = argparse.ArgumentParser(description="LZSS Encoder with Splay Tree")
     p.add_argument("input")
     p.add_argument("--output", default="compressed.lzss")
-    p.add_argument("--debug", action="store_true")
     p.add_argument("--window", type=int, default=WINDOW_SIZE,
                    help=f"Window size (default: {WINDOW_SIZE})")
     p.add_argument("--lookahead", type=int, default=LOOKAHEAD_SIZE,
@@ -230,14 +198,6 @@ def main():
         args.lookahead,
         len(data)
     )
-
-    if args.debug:
-        with open(args.output + ".debug.txt", "w") as f:
-            f.write(f"=== LZSS TOKEN TRACE ===\n\n")
-            for t in writer.debug_tokens:
-                f.write(t + "\n")
-            f.write("\n=== BYTE VIEW (bit groups) ===\n")
-            f.write(writer.byte_groups())
 
     orig_size = len(data)
     comp_size = len(compressed)
