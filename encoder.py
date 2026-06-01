@@ -146,14 +146,46 @@ def lzss_encode(data: bytes,
 
     return writer.flush(), writer, n_literals, n_pairs
 
+def lz77_encode(data: bytes,
+                window_size=WINDOW_SIZE,
+                lookahead_size=LOOKAHEAD_SIZE,
+                min_match=MIN_MATCH):
+    writer = BitWriter()
+    off_bits = offset_bits(window_size)
+    len_bits = length_bits(lookahead_size)
 
-def save_lzss(filename, compressed,
+    i = 0
+    n = len(data)
+    n_literals = 0
+    n_pairs = 0
+
+    splay_tree = None
+    splay_tree = SplayTree(data, lookahead_size)
+
+    while i < n:
+        offset, length = splay_tree.find_best_match(i, window_size)
+
+        writer.write_bits(offset - 1, off_bits)
+        writer.write_bits(length, len_bits)
+        if i + length <= n:
+            writer.write_bits(data[i + length], 8)
+
+        for k in range(length):
+            if i + k < n:
+                splay_tree.insert(i + k)
+                old = i + k - window_size
+                if old >= 0:
+                    splay_tree.delete(old)
+        i += length
+
+    return writer.flush(), writer, n_literals, n_pairs
+
+def save_encoded_to_file(filename, compressed,
               window_size, lookahead_size, original_size):
     with open(filename, 'wb') as f:
         f.write(struct.pack('>HB', window_size, lookahead_size))
         f.write(struct.pack('>I', original_size))
         f.write(compressed)
-
 
 def parse_args():
     p = argparse.ArgumentParser(description="LZSS Encoder with Splay Tree")
@@ -166,6 +198,8 @@ def parse_args():
                    help=f"Lookahead buffer size (default: {LOOKAHEAD_SIZE})")
     p.add_argument("--min-match", type=int, default=MIN_MATCH,
                    help=f"Minimum match length (default: {MIN_MATCH})")
+    p.add_argument("--lz77", action="store_true",
+                   help="Use LZ77 encoding instead of LZSS")
     return p.parse_args()
 
 
@@ -177,7 +211,9 @@ def main():
 
     start = time.perf_counter()
 
-    compressed, writer, n_literals, n_pairs = lzss_encode(
+    encoding_func = lz77_encode if args.lz77 else lzss_encode
+    
+    compressed, writer, n_literals, n_pairs = encoding_func(
         data,
         window_size=args.window,
         lookahead_size=args.lookahead,
@@ -187,7 +223,7 @@ def main():
     elapsed = time.perf_counter() - start
     print(f"Compression time: {elapsed:.4f} s")
 
-    save_lzss(
+    save_encoded_to_file(
         args.output,
         compressed,
         args.window,

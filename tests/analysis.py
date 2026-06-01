@@ -27,7 +27,7 @@ import numpy as np
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from encoder import LOOKAHEAD_SIZE, WINDOW_SIZE, lzss_encode, save_lzss
+from encoder import LOOKAHEAD_SIZE, WINDOW_SIZE, lzss_encode, save_encoded_to_file
 
 # Directories
 
@@ -139,7 +139,7 @@ def analyze_file(file_path: Path) -> dict:
     lzss_encode_time = time.perf_counter() - t0
 
     tmp_lzss = TMP_DIR / (name + ".lzss")
-    save_lzss(tmp_lzss, compressed_bits, WINDOW_SIZE, LOOKAHEAD_SIZE, orig_size)
+    save_encoded_to_file(tmp_lzss, compressed_bits, WINDOW_SIZE, LOOKAHEAD_SIZE, orig_size)
     lzss_size = tmp_lzss.stat().st_size
 
     # LZSS + Huffman (zlib Huffman-only)

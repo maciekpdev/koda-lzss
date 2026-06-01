@@ -3,9 +3,8 @@ import struct
 import zlib
 import pytest
 import time
-from encoder import lzss_encode, save_lzss
 from decoder import lzss_decode
-from encoder import lzss_encode, WINDOW_SIZE, LOOKAHEAD_SIZE
+from encoder import lzss_encode, save_encoded_to_file, WINDOW_SIZE, LOOKAHEAD_SIZE
 import lz4.frame 
 import os
 
@@ -109,7 +108,7 @@ def test_lzss_plus_huffman(filepath, tmp_path):
     temp_lzss_file = tmp_path / "compressed_test.lzss"
     
     
-    save_lzss(temp_lzss_file, raw_lzss_bits, WINDOW_SIZE, LOOKAHEAD_SIZE, orig_size)
+    save_encoded_to_file(temp_lzss_file, raw_lzss_bits, WINDOW_SIZE, LOOKAHEAD_SIZE, orig_size)
     
     lzss_time = time.perf_counter() - start_lzss
 
@@ -168,7 +167,7 @@ def test_lzss_vs_lz4_benchmark(filepath, tmp_path):
     temp_lzss_file = tmp_path / "compressed_test.lzss"
     
     
-    save_lzss(temp_lzss_file, raw_lzss_bits, WINDOW_SIZE, LOOKAHEAD_SIZE, orig_size)
+    save_encoded_to_file(temp_lzss_file, raw_lzss_bits, WINDOW_SIZE, LOOKAHEAD_SIZE, orig_size)
     
     lzss_time = time.perf_counter() - start_lzss
 
