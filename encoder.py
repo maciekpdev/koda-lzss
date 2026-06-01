@@ -8,14 +8,11 @@ MIN_MATCH = 3
 
 from utilities.SplayTree import SplayTree
 
-
 def offset_bits(window_size: int) -> int:
     return (window_size - 1).bit_length()
 
-
 def length_bits(lookahead_size: int) -> int:
     return (lookahead_size - 1).bit_length()
-
 
 class BitWriter:
     def __init__(self):
@@ -66,11 +63,12 @@ def find_longest_match_naive(data: bytes, current_pos: int,
 
     return best_offset, best_length
 
+def lzss_encode(data: bytes, args):
 
-def lzss_encode(data: bytes,
-                window_size=WINDOW_SIZE,
-                lookahead_size=LOOKAHEAD_SIZE,
-                min_match=MIN_MATCH):
+    window_size = args.window
+    lookahead_size = args.lookahead
+    min_match = args.min_match
+    
     writer = BitWriter()
     off_bits = offset_bits(window_size)
     len_bits = length_bits(lookahead_size)
@@ -112,12 +110,12 @@ def lzss_encode(data: bytes,
             i += 1
             n_literals += 1
 
-    return writer.flush(), writer, n_literals, n_pairs
+    return writer.flush(), n_literals, n_pairs
 
-def lz77_encode(data: bytes,
-                window_size=WINDOW_SIZE,
-                lookahead_size=LOOKAHEAD_SIZE,
-                min_match=MIN_MATCH):
+def lz77_encode(data: bytes, args):
+    window_size = args.window
+    lookahead_size = args.lookahead
+
     writer = BitWriter()
     off_bits = offset_bits(window_size)
     len_bits = length_bits(lookahead_size)
@@ -127,27 +125,33 @@ def lz77_encode(data: bytes,
     n_literals = 0
     n_pairs = 0
 
-    splay_tree = None
     splay_tree = SplayTree(data, lookahead_size)
 
     while i < n:
         offset, length = splay_tree.find_best_match(i, window_size)
 
-        writer.write_bits(offset - 1, off_bits)
-        writer.write_bits(length, len_bits)
-        if i + length <= n:
-            writer.write_bits(data[i + length], 8)
-            break
+        next_char = data[i + length] if i + length < n else 0
 
-        for k in range(length):
-            if i + k < n:
-                splay_tree.insert(i + k)
-                old = i + k - window_size
+        writer.write_bits(offset, off_bits)
+        writer.write_bits(length, len_bits)
+        writer.write_bits(next_char, 8)
+
+        for k in range(length + 1):
+            pos = i + k
+            if pos < n:
+                splay_tree.insert(pos)
+                old = pos - window_size
                 if old >= 0:
                     splay_tree.delete(old)
-        i += length
 
-    return writer.flush(), writer, n_literals, n_pairs
+        if length == 0:
+            n_literals += 1
+        else:
+            n_pairs += 1
+
+        i += length + 1 
+
+    return writer.flush(), n_literals, n_pairs
 
 def save_encoded_to_file(filename, compressed,
               window_size, lookahead_size, original_size):
@@ -180,12 +184,12 @@ def main():
     start = time.perf_counter()
 
     encoding_func = lz77_encode if args.lz77 else lzss_encode
+    if args.lz77 and args.output == "compressed.lzss":
+        args.output = "compressed.lz77"
     
-    compressed, writer, n_literals, n_pairs = encoding_func(
+    compressed, n_literals, n_pairs = encoding_func(
         data,
-        window_size=args.window,
-        lookahead_size=args.lookahead,
-        min_match=args.min_match
+        args
     )
 
     elapsed = time.perf_counter() - start
