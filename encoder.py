@@ -132,7 +132,7 @@ def lz77_encode(data: bytes, args):
 
         next_char = data[i + length] if i + length < n else 0
 
-        writer.write_bits(offset, off_bits)
+        writer.write_bits(offset - 1 if length > 0 else 0, off_bits)
         writer.write_bits(length, len_bits)
         writer.write_bits(next_char, 8)
 

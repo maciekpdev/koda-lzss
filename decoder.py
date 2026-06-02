@@ -1,6 +1,7 @@
 import argparse
 import struct
 import sys
+import time
 
 class BitReader:
     def __init__(self, data: bytes):
@@ -30,7 +31,6 @@ class BitReader:
 
 
 def lzss_decode(compressed_data: bytes) -> bytes:
-    
     header_format = '>HB'
     header_size = struct.calcsize(header_format)
     
@@ -57,10 +57,8 @@ def lzss_decode(compressed_data: bytes) -> bytes:
             break
 
         if flag == 1:
-            
-            offset = reader.read_bits(off_bits) +1 
+            offset = reader.read_bits(off_bits) + 1 
             length = reader.read_bits(len_bits)
-           
                 
             start = len(decoded) - offset
             
@@ -70,17 +68,61 @@ def lzss_decode(compressed_data: bytes) -> bytes:
                 else:
                     decoded.append(decoded[start + i])
         else:
-            
             literal = reader.read_bits(8)
             decoded.append(literal)
 
     return bytes(decoded)
 
 
+def lz77_decode(compressed_data: bytes) -> bytes:
+    header_format = '>HB'
+    header_size = struct.calcsize(header_format)
+    
+    if len(compressed_data) < header_size + 4:
+        raise ValueError("File is too small, missing complete header.")
+
+    window_size, lookahead_size = struct.unpack(
+        header_format, compressed_data[:header_size]
+    )
+    original_size = struct.unpack('>I', compressed_data[header_size:header_size + 4])[0]
+    
+    bitstream = compressed_data[header_size + 4:]
+    
+    off_bits = (window_size - 1).bit_length()
+    len_bits = (lookahead_size - 1).bit_length()
+
+    reader = BitReader(bitstream)
+    decoded = bytearray()
+
+    while len(decoded) < original_size:
+        try:
+        
+            offset = reader.read_bits(off_bits) + 1
+            length = reader.read_bits(len_bits)
+            next_char = reader.read_bits(8)
+        except EOFError:
+            break
+
+        if length > 0:
+            start = len(decoded) - offset
+            for i in range(length):
+                if start + i < 0:
+                    decoded.append(0)
+                else:
+                    decoded.append(decoded[start + i])
+
+
+        if len(decoded) < original_size:
+            decoded.append(next_char)
+
+    return bytes(decoded)
+
+
 def parse_args():
-    p = argparse.ArgumentParser(description="LZSS Decoder")
-    p.add_argument("input", help="Input file (.lzss)")
+    p = argparse.ArgumentParser(description="LZSS / LZ77 Decoder")
+    p.add_argument("input", help="Input file (.lzss or .lz77)")
     p.add_argument("--output", default="decoded.txt", help="Output file for decompressed data")
+    p.add_argument("--lz77", action="store_true", help="Use LZ77 decoding instead of LZSS")
     return p.parse_args()
 
 
@@ -95,11 +137,16 @@ def main():
         sys.exit(1)
 
     print(f"Starting decompression of file: {args.input}")
-    import time
+    
+    
+    decode_func = lz77_decode if args.lz77 else lzss_decode
+    
     counter = time.perf_counter()
-    decoded_data = lzss_decode(compressed)
+    decoded_data = decode_func(compressed)
     elapsed = time.perf_counter() - counter
-    print(f"Decompression completed in {elapsed:.2f} seconds.")
+    
+    print(f"Decompression completed in {elapsed:.4f} seconds.")
+    
     with open(args.output, "wb") as f:
         f.write(decoded_data)
 
@@ -107,6 +154,7 @@ def main():
     print(f"  Input size:        {len(compressed)} B")
     print(f"  Output size:       {len(decoded_data)} B")
     print(f"  Saved to:          {args.output}")
+
 
 if __name__ == "__main__":
     main()
