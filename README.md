@@ -1,124 +1,102 @@
 # koda-lzss
 
-Implementation of the **LZSS (Lempel–Ziv–Storer–Szymanski)** compression algorithm  
-created for data compression classes.
+Project for the Data Compression course implementing both:
 
-This project uses a **dynamic dictionary (sliding window)** to encode repeated patterns efficiently.
+- `LZSS` (default mode)
+- `LZ77` (optional mode via `--lz77`)
 
----
+Core files:
 
-# 🚀 Overview
+- `encoder.py` - encoder CLI and algorithms (`lzss_encode`, `lz77_encode`)
+- `decoder.py` - decoder CLI and algorithms (`lzss_decode`, `lz77_decode`)
+- `utilities/SplayTree.py` - dynamic dictionary acceleration
+- `tests/test_lzss.py` - roundtrip + benchmark tests
+- `tests/analysis.py` - entropy/histogram + benchmark analysis
 
-LZSS works by replacing repeated data with references to earlier occurrences.
+## Compressed file format (`.lzss` / `.lz77`)
 
-Instead of storing:
-AAAAAA
+Both modes use the same file header followed by a mode-specific bitstream.
 
-it stores:
-A + (offset=1, length=5)
+### Header (7 bytes)
 
-This reduces redundancy and improves compression — especially for repetitive data.
+| Bytes | Field            | Type   | Description |
+|---|---|---|---|
+| 0-1 | `window_size`    | uint16 | Sliding window size |
+| 2   | `lookahead_size` | uint8  | Lookahead buffer size |
+| 3-6 | `original_size`  | uint32 | Original data size in bytes |
 
----
+All multi-byte values are big-endian.
 
-# 🗂️ File Format (`.lzss`)
+Note: `min_match` is a runtime encoder parameter; it is not serialized in the file header.
 
-Each compressed file consists of a **header** followed by a **bitstream**.
+## Bitstream overview
 
-## 📌 Header (8 bytes)
+### LZSS tokens
 
-| Bytes | Field            | Type     | Description |
-|------|-----------------|----------|------------|
-| 0–1  | `window_size`   | uint16   | Sliding window size |
-| 2    | `lookahead_size`| uint8    | Lookahead buffer size |
-| 3    | `min_match`     | uint8    | Minimum match length |
-| 4–7  | `original_size` | uint32   | Size of original data (bytes) |
+- Literal: `0` + `8 bits` literal byte
+- Match: `1` + `offset_bits` + `length_bits`
 
-All multi-byte values are stored in **big-endian** format.
+where:
 
----
+- `offset_bits = ceil(log2(window_size))`
+- `length_bits = ceil(log2(lookahead_size))`
 
-## 📊 Bitstream (data section)
+### LZ77 tokens
 
-After the header, the file contains a **bit-level encoded stream of tokens**.
+- Always outputs triples: `offset_bits` + `length_bits` + `8 bits next_char`
 
-There are two types of tokens:
+## CLI usage
 
----
+### Encode (LZSS default)
 
-### 🔹 Literal
+```bash
+python encoder.py input.bin --output compressed.lzss
+```
 
-0 [8 bits]
+### Encode in LZ77 mode
 
-- `0` → flag indicating literal  
-- next 8 bits → raw byte (ASCII or binary)
+```bash
+python encoder.py input.bin --lz77 --output compressed.lz77
+```
 
-Example:
-0 01000001 → 'A'
+If `--lz77` is set and output is left as default, encoder switches output name to `compressed.lz77`.
 
----
+### Decode (LZSS default)
 
-### 🔹 Match (Pair)
+```bash
+python decoder.py compressed.lzss --output restored.bin
+```
 
-1 [offset] [length]
+### Decode in LZ77 mode
 
-- `1` → flag indicating match  
-- `offset` → distance backwards in the window  
-- `length` → number of bytes to copy  
+```bash
+python decoder.py compressed.lz77 --lz77 --output restored.bin
+```
 
-Bit sizes depend on parameters:
+## Parameters
 
-offset_bits = ceil(log2(window_size))  
-length_bits = ceil(log2(lookahead_size))
+| Parameter | Meaning | Default |
+|---|---|---|
+| `--window` | window size | `4096` |
+| `--lookahead` | lookahead buffer size | `18` |
+| `--min-match` | minimum match length for LZSS | `3` |
 
-Example:
-1 000000000001 00101  
-→ offset = 1  
-→ length = 5  
+## Tests and analysis
 
----
+Run tests:
 
-# 🧠 How decoding works
+```bash
+python -m pytest tests/test_lzss.py -v -s
+```
 
-When a match is encountered:
+Run analysis (LZSS vs LZ77 + entropy + histograms):
 
-1. Go back `offset` bytes in already decoded data  
-2. Copy `length` bytes from that position  
-3. Append them to output  
+```bash
+python tests/analysis.py
+```
 
-This supports **overlapping matches**, e.g.:
+Outputs include:
 
-offset=1, length=5 → AAAAA
-
----
-
-# ⚙️ Parameters
-
-| Parameter        | Description |
-|------------------|------------|
-| `window_size`    | How far back we can search for matches |
-| `lookahead_size` | Maximum match length |
-| `min_match`      | Minimum length to encode as a match |
-
----
-
-# 🧪 Usage example
-
-python encoder.py input.txt --output file.lzss --debug
-
-Optional tuning:
-
-python encoder.py input.txt --window 8192 --lookahead 32 --min-match 4
-
----
-
-# 🔍 Debug mode
-
-With `--debug`, the encoder generates a human-readable file:
-
-[LITERAL] 'A'  
-[PAIR] offset=1 length=5 ("AAAAA")
-
-Plus a bit-level view:
-
-00100000 11000000 ...
+- `analysis_results.csv`
+- `analysis_results.txt` (if redirected)
+- `histograms/`
