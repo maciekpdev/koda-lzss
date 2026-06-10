@@ -1,17 +1,5 @@
 #!/usr/bin/env python3
-"""
-analysis.py – LZSS/LZ77 project analysis script.
-
-For every file in rozklady_testowe/, obrazy_testowe/, and test.txt:
-  - Runs LZSS and LZ77 encoding
-  - Applies zlib Huffman-only on top of LZSS output
-  - Computes H1 (Shannon entropy), H2/2 and H3/3 (block/Markov per-symbol entropy)
-  - Computes average bit length l_avg = compressed_bits / original_symbols
-  - Saves histogram as PNG
-
-Three result tables are printed and saved to analysis_results.csv.
-Histograms are saved in histograms/.
-"""
+"""LZSS/LZ77 analysis: compress test files, compute entropy and metrics, save CSV and histograms."""
 
 from argparse import Namespace
 import csv
@@ -38,7 +26,6 @@ from encoder import (
     save_encoded_to_file,
 )
 
-# Directories
 HISTOGRAM_DIR = Path("histograms")
 HISTOGRAM_DIR.mkdir(exist_ok=True)
 
@@ -50,9 +37,7 @@ def make_args(window_size=WINDOW_SIZE, lookahead_size=LOOKAHEAD_SIZE, min_match=
     return Namespace(window=window_size, lookahead=lookahead_size, min_match=min_match)
 
 
-# Entropy helpers
 def compute_entropy_h1(arr: np.ndarray) -> float:
-    """Shannon entropy H(X) in bits per symbol."""
     counts = np.bincount(arr, minlength=256)
     counts = counts[counts > 0]
     p = counts / counts.sum()
@@ -87,7 +72,6 @@ def compute_entropy_h3(arr: np.ndarray) -> float:
     return float(-np.sum(p * np.log2(p)) / 3)
 
 
-# Histogram
 def save_histogram(arr: np.ndarray, title: str, out_path: Path) -> None:
     freq = np.bincount(arr, minlength=256)
     fig, ax = plt.subplots(figsize=(8, 4))
@@ -101,9 +85,8 @@ def save_histogram(arr: np.ndarray, title: str, out_path: Path) -> None:
     plt.close(fig)
 
 
-# PGM pixel extraction (strip ASCII header)
 def extract_pixel_bytes(raw: bytes) -> np.ndarray:
-    """Return just the pixel byte array for a P5 PGM file, or all bytes otherwise."""
+    """Pixel bytes from P5 PGM; all bytes for other inputs."""
     if not raw.startswith(b"P5"):
         return np.frombuffer(raw, dtype=np.uint8)
     try:
@@ -126,7 +109,6 @@ def extract_pixel_bytes(raw: bytes) -> np.ndarray:
         return np.frombuffer(raw, dtype=np.uint8)
 
 
-# Per-file analysis
 def analyze_file(file_path: Path, args: Namespace) -> dict:
     with open(file_path, "rb") as f:
         raw = f.read()
@@ -137,7 +119,6 @@ def analyze_file(file_path: Path, args: Namespace) -> dict:
 
     arr_data = extract_pixel_bytes(raw)
 
-    # LZSS
     t0 = time.perf_counter()
     lzss_payload, _, _ = lzss_encode(raw, args)
     lzss_time = time.perf_counter() - t0
@@ -146,7 +127,6 @@ def analyze_file(file_path: Path, args: Namespace) -> dict:
     save_encoded_to_file(lzss_file, lzss_payload, args.window, args.lookahead, orig_size)
     lzss_size = lzss_file.stat().st_size
 
-    # LZ77
     t0 = time.perf_counter()
     lz77_payload, _, _ = lz77_encode(raw, args)
     lz77_time = time.perf_counter() - t0
@@ -155,7 +135,6 @@ def analyze_file(file_path: Path, args: Namespace) -> dict:
     save_encoded_to_file(lz77_file, lz77_payload, args.window, args.lookahead, orig_size)
     lz77_size = lz77_file.stat().st_size
 
-    # LZSS + Huffman (zlib Huffman-only)
     t0 = time.perf_counter()
     with open(lzss_file, "rb") as f:
         lzss_on_disk = f.read()
@@ -164,7 +143,7 @@ def analyze_file(file_path: Path, args: Namespace) -> dict:
     huff_time = time.perf_counter() - t0
     huff_size = len(huff_data)
 
-    # Entropy (on data bytes only, excluding PGM header)
+    # Entropy on pixel/data bytes only (PGM header excluded)
     h1 = compute_entropy_h1(arr_data)
     h2 = compute_entropy_h2(arr_data)
     h3 = compute_entropy_h3(arr_data)
@@ -204,7 +183,6 @@ def analyze_file(file_path: Path, args: Namespace) -> dict:
     }
 
 
-# Table printers
 def print_table1(results):
     print("\n" + "=" * 100)
     print("TABLE 1 - Compression Results (LZSS vs LZ77)")
@@ -257,7 +235,6 @@ def print_table3(results):
         )
 
 
-# File collection
 def collect_files():
     dirs = [Path("rozklady_testowe"), Path("obrazy_testowe")]
     files = []
@@ -270,7 +247,6 @@ def collect_files():
     return files
 
 
-# Main
 def main():
     files = collect_files()
     if not files:
